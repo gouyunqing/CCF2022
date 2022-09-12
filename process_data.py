@@ -1,8 +1,9 @@
 import json
+
+import torch
 from keras_preprocessing.sequence import pad_sequences
 from torch.utils.data import DataLoader, TensorDataset, RandomSampler, SequentialSampler
 import numpy as np
-from process_data import read_data
 from transformers import BertTokenizer
 import random
 
@@ -46,9 +47,11 @@ def load_data(data_list, tokenizer, MAX_LEN, is_train=True):
             add_special_tokens=True
         )
         input_pairs.append(encoded_text)
-    input_pairs = pad_sequences(input_pairs, maxlen=MAX_LEN, dtype='long', value=0, truncating='post', padding='post')
-    for i in range(len(input_pairs)):
-        input_pairs[i] = [input_pairs[i], label]
+    input_ids = pad_sequences(input_pairs, maxlen=MAX_LEN, dtype='long', value=0, truncating='post', padding='post')
+    input_pairs = []
+    for i in range(len(input_ids)):
+        pair = [input_ids[i], label]
+        input_pairs.append(pair)
 
     return input_pairs
 
@@ -65,7 +68,7 @@ def generate_mask(input_pairs):
         mask = [int(_) > 0 for _ in input_id]
         attention_masks.append(mask)
 
-    return attention_masks
+    return torch.tensor(attention_masks)
 
 
 def build_dataloader(input_pairs, attention_masks, batch_size, is_train=True):
@@ -83,6 +86,8 @@ def build_dataloader(input_pairs, attention_masks, batch_size, is_train=True):
         input_ids.append(pair[0])
         labels.append(pair[1])
 
+    input_ids = torch.tensor(input_ids)
+    labels = torch.tensor(labels)
     data = TensorDataset(input_ids, attention_masks, labels)
     if is_train:
         sampler = RandomSampler(data)
@@ -103,3 +108,6 @@ def pipline(data_path, MAX_LEN, batch_size, is_train=True):
 
     return dataloader
 
+
+if __name__ == '__main__':
+    train_dataloader = pipline('train.json', MAX_LEN=128, batch_size=32, is_train=True)
